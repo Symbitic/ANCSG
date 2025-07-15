@@ -1,0 +1,11 @@
+project = How to make an accessible game for blind and visually impaired users
+
+sources.fileextensions = "*.qdoc"
+
+outputdir = public
+
+{headerdirs,sourcedirs} = .
+
+exampledirs = snippets/ ../qml/
+
+imagedirs = images/

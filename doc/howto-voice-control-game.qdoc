@@ -1,0 +1,107 @@
+/*!
+\page howto-voice-control-game.html
+\title How to make an accessible game for blind and visually impaired users
+
+When we think of games, we usually think of controllers like gamepads, keyboards, and touch screens. But for millions of gamers, loss of eyesight makes it near-impossible to enjoy any of the games we take for granted. Even for people who aren't blind, minor damage to the head or optical nerves is all it takes to leave the brain struggling to process the countless fine details found in any given game scene.
+
+This tutorial shows you how to make your games more accessible by adding voice commands and a new high-contrast mode that simplifies the colors rendered on-screen. Our game is called ANCSG: The Anti-Nazi Citizen Saboteur Game. Your goal is to sabotage and demoralize as many Nazis as you can by interrupting them while they are trying to work.
+
+It combines Qt modules like TextToSpeech with Felgo SDK components such as SpeechToText, Theme, and TwoAxisController plus QML features like enums and signals to organize our code in a clean, declarative way. Together, these individual parts allow us to create a game that can be enjoyed by anyone.
+
+\section2 Getting Started
+
+This tutorial assumes you have already installed Felgo. If not, please have a look at \l {https://felgo.com/doc/felgo-get-started-games/} {Getting Started with Felgo and Qt Creator}.
+
+Felgo games can be built and run inside an IDE like Qt Creator or from the command line. For the latter, run the following commands from inside the directory of your game:
+
+\code
+    cmake -S . -B build -G Ninja
+    cmake --build build
+\endcode
+
+\warning If you do decide to build your game from the command-line, make sure the "bin" folder from your Felgo installation is the first in your PATH variable. I learned the hard way this can cause problems with linking to the correct version of Qt.
+
+\section2 Resources
+
+First, copy the "GamePlayground" folder from the Felgo SDK examples folder. To save time, we reuse the \c {MenuButton.qml} file from the "Durdles" demo as well as some images from the Simple Ninja demo. You can download the images \l {https://} {here} and place them in the "assets" folder.
+
+After that, replace the content of \c {Main.qml} with this:
+
+\snippet Basic.qml first_code
+
+You should already be familiar with GameWindow and QML syntax like imports, but you may have noticed a less commonly seen feature: \c {enum}s. We use these when there's a finite number of values to be passed instead of strings since they offer greater type-safety, and it's easier for both linters and human eyes to detect when something's missing. In our case, there are only four possible game screens (scenes) and four possible directions the player can move in, so we store them in two enums for future reference.
+
+We store the current scene being shown as a variable: \c {currentScene}. This allows us to avoid tightly coupling individual scenes to our main file, which will make it easier to split our single-file game into multiple files later on if you wish. We also add several other properties that will be connected to signals from our scenes later, the most important of which are \c {highContrast} and \c {blindMode}, which we'll get into in just a minute.
+
+\section2 Adding High Contrast Mode
+
+The human eye is especially well-suited for detecting heavy contrasts in color. Vision originally evolved specifically for this purpose, and it can still be found in the most primitive eyes found in nature: centipedes and fresh-water clams. Because of this, even people who are legally blind may still be able to register shapes and text as long as the contrast between foreground and background is high enough.
+
+High Contrast mode is intended to make our game easier to see by decreasing the total number of perceived colors. Thanks to Felgo's Theme component, all we have to do is set the colors we want to use, but we also need to save a copy of the original theme colors so they can be restored later if needed.
+
+\snippet Main.qml Save original theme colors
+
+Without this, the value of \c {defaultTextColor} and \c {defaultBackgroundColor} would change after we set them. We already created a property to hold if high contrast mode has been enabled; all we have to do is listen for that signal and change the value of the theme colors when it does:
+
+\snippet Main.qml Toggle High Contrast mode
+
+That's it! Your game now has everything it needs to be accessible for people with impaired vision. The background will immediately change from the system default to pure black once it's enabled, but first we need to add a way for users to select which game mode they want to play.
+
+\section2 Scene 1 (Select Game Mode)
+
+\snippet Main.qml Scene 1
+
+This is the first scene that will be shown to users.
+
+The code should be relatively easy to understand. We use a responsive layout to display three buttons for each game mode: Traditional, High Contrast, and Blind. If TextToSpeech or SpeechToText are unavailable, Blind mode will be disabled and an error text message will inform the user why.
+
+One thing to pay attention to is the \c {visible} property and the three signals. We'll be connecting these later on, but first, we need to add our second scene.
+
+\section2 Scene 2 (Introduction Message)
+
+\snippet Main.qml Scene 2
+
+Scene two is very similar to scene one, so if you understood the last section, you should have little trouble here. The biggest change is that this is the first scene with support for Blind mode.
+
+The instructions shown to the user will be changed depending on if Blind mode is enabled. If not, the user is given instructions on how to use the WASD keys.
+
+If High Contrast mode was selected, the user will immediately see the difference, with the background changing and all text being more visible.
+
+\section2 Scene 3 (Game Screen)
+
+\snippet Main.qml Adding the game scene
+
+This is where most of the magic happens. We start by generating a list of random positions on the board to be occupied by Nazis. This is sufficient in Traditional and High Contrast mode, but because blind users won't be able to visually identify the locations of enemies themselves, we need to read them using TextToSpeech.
+
+\snippet Main.qml Read Nazi positions in Blind mode
+
+After that, we're ready to enable speech recognition using the Felgo SDK.
+
+\snippet Main.qml Enable STT
+
+We'll soon be adding a slot for processing speech into game commands, but first, pay attention to the \c {move} function.
+This is where we use the \c {MoveDirection} enum we defined earlier. More importantly, it shows how you can structure your code to easily add support for both traditional inputs and voice commands. In both modes, we calculate if any Nazis have been sabotaged and, if there are none remaining, it ends speech recognition and emits a signal to indicate the game has been finished.
+
+\snippet Main.qml Handle speech commands
+
+Adding support for speech commands is surprisingly simple. A slot connected to the \c {SpeechToText} singleton simply transforms text into enum values the way \c {TwoAxisController} did for keyboard events.
+
+\section2 Scene 3 (Game Over Scene)
+
+\snippet Main.qml Game over scene
+
+Our final scene is very simple. We simply inform the user of the success they had in sabotaging the Nazis.
+
+\section2 Connecting Everything
+
+\snippet Main.qml Connecting the different scenes
+
+To avoid any tight coupling between different scenes, we use signals to inform our main component of any properties that need to be changed, rather than modify them directly inside the scene.
+
+\section2 What Next?
+
+Good job making it this far! You should now understand the basics of how to make games more accessible to a wider range of users by adding support for voice commands and high contrast colors.
+
+In case you had trouble copying any of the code, you can download the complete demo \l {https://} {here}.
+
+*/
