@@ -62,7 +62,7 @@ GameWindow {
   }
   //! [Toggle High Contrast mode]
 
-  //! [Scene 1]
+  //! [Select a game mode]
   Scene {
     id: selectGameModeScene
     visible: window.currentScene === Main.GameScene.SelectGameMode
@@ -124,9 +124,9 @@ GameWindow {
       visible: !selectGameModeScene.enableBlindModeButton
     }
   }
-  //! [Scene 1]
+  //! [Select a game mode]
 
-  //! [Scene 2]
+  //! [Explain the mission and gameplay instructions]
   Scene {
     id: introductionMessageScene
     visible: window.currentScene === Main.GameScene.IntroductionMessage
@@ -168,9 +168,9 @@ GameWindow {
       }
     }
   }
-  //! [Scene 2]
+  //! [Explain the mission and gameplay instructions]
 
-  //! [Adding the game scene]
+  //! [Gameplay scene]
   Scene {
     id: gameScene
     visible: window.currentScene === Main.GameScene.Game
@@ -392,9 +392,9 @@ GameWindow {
     }
     //! [Handle speech commands]
   }
-  //! [Adding the game scene]
+  //! [Gameplay scene]
 
-  //! [Game over scene]
+  //! [Game score]
   Scene {
     id: gameOverScene
     visible: window.currentScene === Main.GameScene.GameOver
@@ -420,9 +420,9 @@ GameWindow {
       }
     }
   }
-  //! [Game over scene]
+  //! [Game score]
 
-  //! [Connecting the different scenes]
+  //! [Connecting the scenes]
   Connections {
     target: selectGameModeScene
 
@@ -458,5 +458,5 @@ GameWindow {
       window.currentScene = Main.GameScene.GameOver;
     }
   }
-  //! [Connecting the different scenes]
+  //! [Connecting the scenes]
 }
