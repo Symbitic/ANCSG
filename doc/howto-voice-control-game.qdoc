@@ -10,6 +10,8 @@ This tutorial shows you how to make your games more accessible by adding voice c
 
 \image {game-scene-highcontrast.png} {Showing the main game scene in High Contrast mode for people with impaired vision}
 
+\image {game-over-highcontrast.png} {Screen showing your final score}
+
 It combines Qt modules like \l {https://doc.qt.io/qt-6/qttexttospeech-index.html} {TextToSpeech} with Felgo SDK components such as \l {https://felgo.com/doc/felgo-speechtotext/} {SpeechToText}, \l {https://felgo.com/doc/felgo-theme/} {Theme}, and \l {https://felgo.com/doc/felgo-twoaxiscontroller/} {TwoAxisController}, plus QML features like enums and signals to organize your code in a clean, declarative way. Together, this allows us to create a game that can be enjoyed by anyone.
 
 \section2 Getting Started
