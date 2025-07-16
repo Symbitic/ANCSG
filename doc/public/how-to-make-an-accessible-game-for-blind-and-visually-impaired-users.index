@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE QDOCINDEX>
+<INDEX url="" title="How to make an accessible game for blind and visually impaired users Reference Documentation" version="" project="How to make an accessible game for blind and visually impaired users">
+    <namespace name="" status="active" access="public" module="how to make an accessible game for blind and visually impaired users">
+        <page name="howto-voice-control-game.html" href="howto-voice-control-game.html" status="active" location="howto-voice-control-game.qdoc" filepath="/home/alex/Downloads/Felgo/doc/howto-voice-control-game.qdoc" lineno="1" documented="true" subtype="page" title="How to make an accessible game for blind and visually impaired users" fulltitle="How to make an accessible game for blind and visually impaired users" subtitle="">
+            <contents name="getting-started" title="Getting Started" level="2"/>
+            <contents name="resources" title="Resources" level="2"/>
+            <contents name="adding-high-contrast-mode" title="Adding High Contrast Mode" level="2"/>
+            <contents name="scene-1-game-mode-menu" title="Scene 1: Game Mode Menu" level="2"/>
+            <contents name="scene-2-introduction-message" title="Scene 2: Introduction Message" level="2"/>
+            <contents name="scene-3-gameplay" title="Scene 3: Gameplay" level="2"/>
+            <contents name="scene-4-game-result" title="Scene 4: Game Result" level="2"/>
+            <contents name="connecting-everything" title="Connecting Everything" level="2"/>
+            <contents name="conclusion" title="Conclusion" level="2"/>
+        </page>
+    </namespace>
+</INDEX>

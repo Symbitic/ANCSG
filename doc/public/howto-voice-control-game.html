@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+<!-- howto-voice-control-game.qdoc -->
+  <title>How to make an accessible game for blind and visually impaired users</title>
+</head>
+<body>
+<div class="sidebar">
+<div class="toc">
+<h3 id="toc">Contents</h3>
+<ul>
+<li class="level2"><a href="#getting-started">Getting Started</a></li>
+<li class="level2"><a href="#resources">Resources</a></li>
+<li class="level2"><a href="#adding-high-contrast-mode">Adding High Contrast Mode</a></li>
+<li class="level2"><a href="#scene-1-game-mode-menu">Scene 1: Game Mode Menu</a></li>
+<li class="level2"><a href="#scene-2-introduction-message">Scene 2: Introduction Message</a></li>
+<li class="level2"><a href="#scene-3-gameplay">Scene 3: Gameplay</a></li>
+<li class="level2"><a href="#scene-4-game-result">Scene 4: Game Result</a></li>
+<li class="level2"><a href="#connecting-everything">Connecting Everything</a></li>
+<li class="level2"><a href="#conclusion">Conclusion</a></li>
+</ul>
+</div>
+<div class="sidebar-content" id="sidebar-content"></div></div>
+<h1 class="title">How to make an accessible game for blind and visually impaired users</h1>
+<!-- $$$howto-voice-control-game.html-description -->
+<div class="descr" id="details">
+<p>When we think of games, we usually think of controllers like gamepads, keyboards, and touch screens. But for millions of gamers, losing their eyesight makes it nearly impossible to enjoy the types of games we take for granted. Even for people who aren't blind, minor damage to the head or optic nerves can leave the brain struggling to process the countless fine details found in a typical game scene.</p>
+<p>This tutorial shows you how to make your games more accessible by adding voice commands and a new high-contrast mode that simplifies colors rendered on-screen. Our game is called ANCSG: Anti-Nazi Citizen Saboteur Game. It's a simple board game where the goal is to sabotage and demoralize as many Nazis as possible by interrupting them while they're trying to work.</p>
+<p class="centerAlign"><img src="images/game-mode.png" alt="{The game mode scene allowing players to select which game mode to use}" /></p><p class="centerAlign"><img src="images/game-scene-highcontrast.png" alt="{Showing the main game scene in High Contrast mode for people with impaired vision}" /></p><p class="centerAlign"><img src="images/game-over-highcontrast.png" alt="{Screen showing your final score}" /></p><p>It combines Qt modules like <a href="https://doc.qt.io/qt-6/qttexttospeech-index.html">TextToSpeech</a> with Felgo SDK components such as <a href="https://felgo.com/doc/felgo-speechtotext/">SpeechToText</a>, <a href="https://felgo.com/doc/felgo-theme/">Theme</a>, and <a href="https://felgo.com/doc/felgo-twoaxiscontroller/">TwoAxisController</a>, plus QML features like enums and signals to organize your code in a clean, declarative way. Together, this allows us to create a game that can be enjoyed by anyone.</p>
+<h3 id="getting-started">Getting Started</h3>
+<p>This tutorial assumes you have already installed Felgo. If not, please see the official guide at <a href="https://felgo.com/doc/felgo-get-started-games/">Getting Started with Felgo and Qt Creator</a>.</p>
+<p>Felgo games can be built and run inside an IDE like Qt Creator or from the command line. For the latter, run the following commands inside your game's directory:</p>
+<pre class="cpp">cmake <span class="operator">-</span>S <span class="operator">.</span> <span class="operator">-</span>B build <span class="operator">-</span>G Ninja
+cmake <span class="operator">-</span><span class="operator">-</span>build build</pre>
+<div class="admonition warning">
+<p><b>Warning: </b>If you do choose to build from the command line, make sure the &quot;bin&quot; directory from your Felgo installation comes first in your PATH environment variable.</p>
+</div>
+<h3 id="resources">Resources</h3>
+<p>First, copy the <code>GamePlayground</code> folder from the Felgo SDK examples directory. You should find it in your Felgo installation directory:</p>
+<pre class="cpp"><span class="operator">&lt;</span>FelgoSDK<span class="operator">&gt;</span><span class="operator">/</span>Examples<span class="operator">/</span>Felgo<span class="operator">/</span>playground<span class="operator">/</span>GamePlayground</pre>
+<p>Make a copy of this project and open it in Qt Creator. To save time, we'll also reuse the <code>MenuButton.qml</code> file from the Durdles demo. You can find it under:</p>
+<pre class="cpp"><span class="operator">&lt;</span>FelgoSDK<span class="operator">&gt;</span><span class="operator">/</span>Examples<span class="operator">/</span>Felgo<span class="operator">/</span>demos<span class="operator">/</span>Durdles<span class="operator">/</span>qml<span class="operator">/</span>common<span class="operator">/</span>MenuButton<span class="operator">.</span>qml</pre>
+<p>Finally, download the image assets <a href="https://">here</a> and place them in your project's <code>assets</code> directory. The images are borrowed from the &quot;Simple Ninja&quot; demo, so we'll have to pretend our Nazis look like ghosts.</p>
+<p>Open <code>Main.qml</code>. Replace the contents with the following:</p>
+<pre class="qml">import Felgo
+import QtQuick
+import QtTextToSpeech
+import &quot;.&quot;
+
+<span class="type">GameWindow</span> {
+  <span class="name">id</span>: <span class="name">window</span>
+  <span class="name">screenHeight</span>: <span class="number">960</span>
+  <span class="name">screenWidth</span>: <span class="number">640</span>
+
+  <span class="comment">// Using an enum to keep track of the current scene offers more type-safety.</span>
+  enum GameScene {
+    SelectGameMode,
+    IntroductionMessage,
+    Game,
+    GameOver
+  }
+  <span class="comment">// Player movement is handled in function to avoid duplicate code for keyboard and voice input handling.</span>
+  enum MoveDirection {
+    Up,
+    Left,
+    Down,
+    Right
+  }
+
+  <span class="comment">// Main comes from the filename: Main.qml</span>
+  property <span class="type">int</span> <span class="name">currentScene</span>: <span class="name">Main</span>.<span class="name">GameScene</span>.<span class="name">SelectGameMode</span>
+  property <span class="type">bool</span> <span class="name">highContrast</span>: <span class="number">false</span>
+  property <span class="type">bool</span> <span class="name">blindMode</span>: <span class="number">false</span>
+  property <span class="type">int</span> <span class="name">finalScore</span>: <span class="number">0</span>
+
+  <span class="type">TextToSpeech</span> {
+    <span class="name">id</span>: <span class="name">tts</span>
+  }
+}</pre>
+<p>Now that our game is running, we can begin adding accessibility features.</p>
+<h3 id="adding-high-contrast-mode">Adding High Contrast Mode</h3>
+<p>The human eye is especially well-suited for spotting heavy contrasts in color. Even players who are legally blind can often distinguish shapes and text when the contrast is high enough.</p>
+<p>High-Contrast mode reduces the palette to a few distinct colors so every element stands out. Felgo's <code>Theme</code> singleton makes this easy: we just override the color values and all Felgo components will immediately change. First, though, we need to make a copy of the original theme colors so they can be restored later.</p>
+<pre class="qml"><span class="comment">// Store a copy of the original colors to use when High Contrast mode is switched off.</span>
+property <span class="type">color</span> <span class="name">defaultTextColor</span>: <span class="number">null</span>
+property <span class="type">color</span> <span class="name">defaultBackgroundColor</span>: <span class="number">null</span>
+
+<span class="comment">// Use imperative assignment to prevent color values from changing.</span>
+<span class="name">Component</span>.onCompleted: {
+  <span class="name">defaultBackgroundColor</span> <span class="operator">=</span> <span class="name">Theme</span>.<span class="name">colors</span>.<span class="name">backgroundColor</span>;
+  <span class="name">defaultTextColor</span> <span class="operator">=</span> <span class="name">Theme</span>.<span class="name">colors</span>.<span class="name">textColor</span>;
+}</pre>
+<p>Without this backup, the values of <code>defaultTextColor</code> and <code>defaultBackgroundColor</code> would be lost once we override them. We already added the <code>highContrast</code> property in our last step to keep track of whether High Contrast mode is enabled; all that remains is to listen for its signal and swap the theme colors accordingly:</p>
+<pre class="qml"><span class="comment">// For visually-impaired users, bright text against a dark background (or vice-versa) is much easier to read.</span>
+<span class="name">onHighContrastChanged</span>: {
+  <span class="name">Theme</span>.<span class="name">colors</span>.<span class="name">textColor</span> <span class="operator">=</span> <span class="name">highContrast</span> ? <span class="string">&quot;#ffffff&quot;</span> : <span class="name">defaultTextColor</span>;
+  <span class="name">Theme</span>.<span class="name">colors</span>.<span class="name">backgroundColor</span> <span class="operator">=</span> <span class="name">highContrast</span> ? <span class="string">&quot;#000000&quot;</span> : <span class="name">defaultBackgroundColor</span>;
+  <span class="name">Theme</span>.<span class="name">appButton</span>.<span class="name">backgroundColor</span> <span class="operator">=</span> <span class="string">&quot;yellow&quot;</span>;
+  <span class="name">Theme</span>.<span class="name">appButton</span>.<span class="name">textColor</span> <span class="operator">=</span> <span class="string">&quot;black&quot;</span>;
+}
+
+<span class="type">Rectangle</span> {
+  <span class="name">color</span>: <span class="name">Theme</span>.<span class="name">colors</span>.<span class="name">backgroundColor</span>
+  <span class="name">anchors</span>.fill: <span class="name">parent</span>
+}</pre>
+<p>That's it! Your game now has everything it needs to be accessible for people with impaired vision. In the next section we'll add a simple menu so players can choose which mode to use.</p>
+<h3 id="scene-1-game-mode-menu">Scene 1: Game Mode Menu</h3>
+<pre class="qml"><span class="type">Scene</span> {
+  <span class="name">id</span>: <span class="name">selectGameModeScene</span>
+  <span class="name">visible</span>: <span class="name">window</span>.<span class="name">currentScene</span> <span class="operator">===</span> <span class="name">Main</span>.<span class="name">GameScene</span>.<span class="name">SelectGameMode</span>
+
+  signal <span class="type">traditionalModeSelected</span>()
+  signal <span class="type">highContrastModeSelected</span>()
+  signal <span class="type">blindModeSelected</span>()
+
+  <span class="comment">// Blind mode requires both STT and TTS</span>
+  readonly property <span class="type">bool</span> <span class="name">enableBlindModeButton</span>: <span class="name">SpeechToText</span>.<span class="name">recognitionAvailable</span> <span class="operator">&amp;&amp;</span> <span class="name">tts</span>.<span class="name">state</span> <span class="operator">===</span> <span class="name">TextToSpeech</span>.<span class="name">Ready</span>
+  <span class="comment">// Unhelpful error messages are the worst possible UX. The user should know the reason the game isn't working as expected.</span>
+  readonly property <span class="type">string</span> <span class="name">missingRequirement</span>: !<span class="name">SpeechToText</span>.<span class="name">recognitionAvailable</span> ? <span class="name">qsTr</span>(<span class="string">&quot;Voice recognition&quot;</span>) :
+    <span class="name">tts</span>.<span class="name">state</span> <span class="operator">!==</span> <span class="name">TextToSpeech</span>.<span class="name">Ready</span> ? <span class="name">qsTr</span>(<span class="string">&quot;Text-to-speech&quot;</span>) : <span class="string">&quot;&quot;</span>
+
+  <span class="type">Row</span> {
+    <span class="name">id</span>: <span class="name">buttonsRow</span>
+    <span class="name">anchors</span>.centerIn: <span class="name">parent</span>
+    <span class="name">spacing</span>: <span class="name">dp</span>(<span class="number">10</span>)
+
+    <span class="type">MenuButton</span> {
+      <span class="name">text</span>: <span class="name">qsTr</span>(<span class="string">&quot;Traditional&quot;</span>)
+      <span class="name">color</span>: <span class="string">&quot;red&quot;</span>
+      <span class="name">buttonText</span>.color: <span class="string">&quot;white&quot;</span>
+      <span class="name">buttonText</span>.font.pixelSize: <span class="number">24</span>
+      <span class="name">onClicked</span>: <span class="name">selectGameModeScene</span>.<span class="name">traditionalModeSelected</span>()
+    }
+
+    <span class="type">MenuButton</span> {
+      <span class="name">text</span>: <span class="name">qsTr</span>(<span class="string">&quot;High Contrast&quot;</span>)
+      <span class="name">color</span>: <span class="string">&quot;green&quot;</span>
+      <span class="name">buttonText</span>.color: <span class="string">&quot;white&quot;</span>
+      <span class="name">buttonText</span>.font.pixelSize: <span class="number">24</span>
+      <span class="name">onClicked</span>: <span class="name">selectGameModeScene</span>.<span class="name">highContrastModeSelected</span>()
+    }
+
+    <span class="type">MenuButton</span> {
+      <span class="name">text</span>: <span class="name">qsTr</span>(<span class="string">&quot;Blind&quot;</span>)
+      <span class="name">color</span>: <span class="string">&quot;blue&quot;</span>
+      <span class="name">buttonText</span>.color: <span class="string">&quot;white&quot;</span>
+      <span class="name">buttonText</span>.font.pixelSize: <span class="number">24</span>
+      <span class="name">onClicked</span>: <span class="name">selectGameModeScene</span>.<span class="name">selectLevelPressed</span>()
+      <span class="name">enabled</span>: <span class="name">selectGameModeScene</span>.<span class="name">enableBlindModeButton</span>
+      <span class="name">opacity</span>: <span class="name">enabled</span> ? <span class="number">1.0</span> : <span class="number">0.5</span>
+    }
+  }
+
+  <span class="type">AppText</span> {
+    <span class="name">anchors</span>.horizontalCenter: <span class="name">parent</span>.<span class="name">horizontalCenter</span>
+    <span class="name">anchors</span>.bottom: <span class="name">buttonsRow</span>.<span class="name">top</span>
+    <span class="name">text</span>: <span class="name">qsTr</span>(<span class="string">&quot;Select game mode&quot;</span>)
+    <span class="name">font</span>.pixelSize: <span class="number">36</span>
+  }
+
+  <span class="type">AppText</span> {
+    <span class="name">anchors</span>.horizontalCenter: <span class="name">parent</span>.<span class="name">horizontalCenter</span>
+    <span class="name">anchors</span>.top: <span class="name">buttonsRow</span>.<span class="name">bottom</span>
+    <span class="name">text</span>: <span class="name">qsTr</span>(<span class="string">&quot;%1 unavailable - blind mode disabled&quot;</span>).<span class="name">arg</span>(<span class="name">selectGameModeScene</span>.<span class="name">missingRequirement</span>)
+    <span class="name">font</span>.pixelSize: <span class="number">18</span>
+    <span class="name">visible</span>: !<span class="name">selectGameModeScene</span>.<span class="name">enableBlindModeButton</span>
+  }
+}</pre>
+<p>This is the first scene shown to users.</p>
+<p>The code should be fairly easy to follow. We use a responsive layout to display three buttons: Traditional, High Contrast, and Blind Mode. If either <code>TextToSpeech</code> or <code>SpeechToText</code> is unavailable, Blind Mode will be disabled, and an error message will appear to inform the user why.</p>
+<p>One detail to note is the <code>visible</code> property and the three signals defined in this scene. We'll connect those later, but first, we need to give the user instructions on how to play our game.</p>
+<h3 id="scene-2-introduction-message">Scene 2: Introduction Message</h3>
+<pre class="qml"><span class="type">Scene</span> {
+  <span class="name">id</span>: <span class="name">introductionMessageScene</span>
+  <span class="name">visible</span>: <span class="name">window</span>.<span class="name">currentScene</span> <span class="operator">===</span> <span class="name">Main</span>.<span class="name">GameScene</span>.<span class="name">IntroductionMessage</span>
+
+  signal <span class="type">startClicked</span>()
+
+  readonly property <span class="type">string</span> <span class="name">baseMessage</span>: <span class="string">&quot;Greetings, citizen.\n\n&quot;</span>
+    <span class="operator">+</span> <span class="string">&quot;You are now part of the underground resistance movement in German-occupied Europe. &quot;</span>
+    <span class="operator">+</span> <span class="string">&quot;Your goal is to sabotage as many Nazis as you can. &quot;</span>
+    <span class="operator">+</span> <span class="string">&quot;As detailed in the Simple Sabotage Field Manual, the best way of doing this is to interrupt your coworkers as often as possible.&quot;</span>
+
+  readonly property <span class="type">string</span> <span class="name">keyboardInstructions</span>: <span class="string">&quot;Using WASD to move and rotate, visit all the Nazi office workers on your floor and inform them of a meeting they are required to attend.&quot;</span>
+    <span class="operator">+</span> <span class="string">&quot;Afterward, revisit them in the same order to inform them the meeting has been canceled.&quot;</span>
+
+  readonly property <span class="type">string</span> <span class="name">voiceInstructions</span>: <span class="string">&quot;Visit all the Nazi office workers on your floor and inform them of a meeting they are required to attend.&quot;</span>
+    <span class="operator">+</span> <span class="string">&quot;Say \&quot;move left, right, up or down\&quot; to move your character.&quot;</span>
+
+  readonly property <span class="type">string</span> <span class="name">finalWords</span>: <span class="string">&quot;Good luck!&quot;</span>
+
+  readonly property <span class="type">string</span> <span class="name">text</span>: `${baseMessage} ${window.blindMode ? voiceInstructions : keyboardInstructions}\n\n${finalWords}`
+
+  <span class="type">Column</span> {
+    <span class="name">spacing</span>: <span class="number">0</span>
+    <span class="name">width</span>: <span class="name">parent</span>.<span class="name">width</span> <span class="operator">-</span> <span class="name">dp</span>(<span class="number">20</span>)
+    <span class="name">anchors</span>.centerIn: <span class="name">parent</span>
+
+    <span class="type">AppText</span> {
+      <span class="name">text</span>: <span class="name">introductionMessageScene</span>.<span class="name">text</span>
+      <span class="name">font</span>.pixelSize: <span class="number">14</span>
+      <span class="name">wrapMode</span>: <span class="name">Text</span>.<span class="name">WordWrap</span>
+      <span class="name">width</span>: <span class="name">parent</span>.<span class="name">width</span>
+    }
+
+    <span class="type">AppButton</span> {
+      <span class="name">anchors</span>.horizontalCenter: <span class="name">parent</span>.<span class="name">horizontalCenter</span>
+      <span class="name">text</span>: <span class="name">qsTr</span>(<span class="string">&quot;Start&quot;</span>)
+      <span class="name">flat</span>: <span class="number">false</span>
+      <span class="name">onClicked</span>: <span class="name">introductionMessageScene</span>.<span class="name">startClicked</span>()
+    }
+  }
+}</pre>
+<p>Scene two is very similar to scene one, so if you understood the last section, you should have little trouble here. The biggest difference is that this is the first scene with support for Blind Mode.</p>
+<p>The instructions shown to the user will change depending on whether Blind Mode is enabled. If it is, the game is played by saying “move” followed by which direction to move the player in. Otherwise, the user is given instructions for using the WASD keys.</p>
+<p>If High Contrast Mode was selected, the user will immediately notice the difference: the background turns black and all text becomes significantly more readable.</p>
+<h3 id="scene-3-gameplay">Scene 3: Gameplay</h3>
+<pre class="qml"><span class="type">Scene</span> {
+  <span class="name">id</span>: <span class="name">gameScene</span>
+  <span class="name">visible</span>: <span class="name">window</span>.<span class="name">currentScene</span> <span class="operator">===</span> <span class="name">Main</span>.<span class="name">GameScene</span>.<span class="name">Game</span>
+
+  readonly property <span class="type">int</span> <span class="name">gridSize</span>: <span class="number">10</span>
+  readonly property <span class="type">int</span> <span class="name">enemyCount</span>: <span class="number">5</span>
+  readonly property <span class="type">int</span> <span class="name">boardSize</span>: <span class="name">Math</span>.<span class="name">min</span>(<span class="name">width</span>, <span class="name">height</span>) <span class="operator">-</span> <span class="number">4</span>
+  readonly property <span class="type">int</span> <span class="name">cellSize</span>: <span class="name">boardSize</span> <span class="operator">/</span> <span class="name">gridSize</span>
+
+  property <span class="type">point</span> <span class="name">playerPosition</span>: <span class="name">Qt</span>.<span class="name">point</span>(<span class="number">0</span>, <span class="number">0</span>)
+  property list&lt;<span class="type">point</span>&gt; <span class="name">naziPositions</span>: []
+  property <span class="type">int</span> <span class="name">startTime</span>: <span class="number">0</span>
+
+  signal <span class="type">finished</span>(score: int, time: int)
+
+  <span class="name">Component</span>.onCompleted: {
+    <span class="comment">// Generate a list of random office cubicles occupied by Nazis.</span>
+    <span class="keyword">while</span> (<span class="name">naziPositions</span>.<span class="name">length</span> <span class="operator">&lt;</span> <span class="name">enemyCount</span>) {
+      const x = <span class="name">Math</span>.<span class="name">floor</span>(<span class="name">Math</span>.<span class="name">random</span>() <span class="operator">*</span> <span class="name">gridSize</span>)
+      const y = <span class="name">Math</span>.<span class="name">floor</span>(<span class="name">Math</span>.<span class="name">random</span>() <span class="operator">*</span> <span class="name">gridSize</span>)
+      <span class="keyword">if</span> (!<span class="name">naziPositions</span>.<span class="name">some</span>(<span class="keyword"></span>e =&gt; <span class="keyword"></span><span class="name">e</span>.<span class="name">x</span> <span class="operator">===</span> <span class="name">x</span> <span class="operator">&amp;&amp;</span> <span class="name">e</span>.<span class="name">y</span> <span class="operator">===</span> <span class="name">y</span>) <span class="operator">&amp;&amp;</span> !(<span class="name">x</span> <span class="operator">===</span> <span class="number">0</span> <span class="operator">&amp;&amp;</span> <span class="name">y</span> <span class="operator">===</span> <span class="number">0</span>)) {
+        <span class="name">naziPositions</span>.<span class="name">push</span>(<span class="name">Qt</span>.<span class="name">point</span>(<span class="name">x</span>, <span class="name">y</span>));
+      }
+    }
+  }
+
+  <span class="name">onVisibleChanged</span>: {
+    <span class="keyword">if</span> (<span class="name">visible</span>) {
+      <span class="name">startTime</span> <span class="operator">=</span> <span class="name">Date</span>.<span class="name">now</span>();
+    }
+    <span class="comment">// Inform blind users of the enemy positions</span>
+    const boxes = <span class="name">naziPositions</span>.<span class="name">map</span>((<span class="keyword"></span>pos) =&gt; <span class="keyword"></span>(<span class="name">pos</span>.<span class="name">y</span> <span class="operator">*</span> <span class="name">gridSize</span>) <span class="operator">+</span> <span class="name">pos</span>.<span class="name">x</span> <span class="operator">+</span> <span class="number">1</span>)
+    const text = `There are Nazis in cells ${boxes.slice(0, -1).join(&quot;, &quot;)} and ${boxes[boxes.length-1]}`;
+    <span class="keyword">if</span> (<span class="name">visible</span> <span class="operator">&amp;&amp;</span> <span class="name">window</span>.<span class="name">blindMode</span> <span class="operator">&amp;&amp;</span> <span class="name">tts</span>.<span class="name">state</span> <span class="operator">===</span> <span class="name">TextToSpeech</span>.<span class="name">Ready</span>) {
+      <span class="name">tts</span>.<span class="name">say</span>(<span class="name">text</span>);
+    }
+    <span class="keyword">if</span> (<span class="name">visible</span> <span class="operator">&amp;&amp;</span> <span class="name">window</span>.<span class="name">blindMode</span>) {
+      <span class="name">SpeechToText</span>.<span class="name">startSpeechToText</span>(<span class="string">&quot;en-US&quot;</span>);
+    }
+  }
+
+  <span class="keyword">function </span><span class="name">move</span>(direction: <span class="name">int</span>) {
+    <span class="keyword">if</span> (<span class="name">horizontalAnimation</span>.<span class="name">running</span> <span class="operator">||</span> <span class="name">verticalAnimation</span>.<span class="name">running</span>) {
+      <span class="keyword">return</span>;
+    }
+
+    <span class="keyword">switch</span> (<span class="name">direction</span>) {
+      <span class="keyword">case</span> <span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Up</span>:
+        <span class="keyword">if</span> (<span class="name">playerPosition</span>.<span class="name">y</span> <span class="operator">&gt;</span> <span class="number">0</span>) {
+          playerPosition.y--;
+          <span class="name">verticalAnimation</span>.<span class="name">to</span> <span class="operator">=</span> <span class="name">board</span>.<span class="name">y</span> <span class="operator">+</span> <span class="name">playerPosition</span>.<span class="name">y</span> <span class="operator">*</span> <span class="name">cellSize</span>;
+          <span class="name">verticalAnimation</span>.<span class="name">start</span>();
+        }
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Left</span>:
+        <span class="keyword">if</span> (<span class="name">playerPosition</span>.<span class="name">x</span> <span class="operator">&gt;</span> <span class="number">0</span>) {
+          playerPosition.x--;
+          <span class="name">horizontalAnimation</span>.<span class="name">to</span> <span class="operator">=</span> <span class="name">board</span>.<span class="name">x</span> <span class="operator">+</span> <span class="name">playerPosition</span>.<span class="name">x</span> <span class="operator">*</span> <span class="name">cellSize</span>;
+          <span class="name">horizontalAnimation</span>.<span class="name">start</span>();
+        }
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Down</span>:
+        <span class="keyword">if</span> (<span class="name">playerPosition</span>.<span class="name">y</span> <span class="operator">&lt;</span> <span class="name">gridSize</span><span class="operator">-</span><span class="number">1</span>) {
+          playerPosition.y++;
+          <span class="name">verticalAnimation</span>.<span class="name">to</span> <span class="operator">=</span> <span class="name">board</span>.<span class="name">y</span> <span class="operator">+</span> <span class="name">playerPosition</span>.<span class="name">y</span> <span class="operator">*</span> <span class="name">cellSize</span>;
+          <span class="name">verticalAnimation</span>.<span class="name">start</span>();
+        }
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Right</span>:
+        <span class="keyword">if</span> (<span class="name">playerPosition</span>.<span class="name">x</span> <span class="operator">&lt;</span> <span class="name">gridSize</span><span class="operator">-</span><span class="number">1</span>) {
+          playerPosition.x++;
+          <span class="name">horizontalAnimation</span>.<span class="name">to</span> <span class="operator">=</span> <span class="name">board</span>.<span class="name">x</span> <span class="operator">+</span> <span class="name">playerPosition</span>.<span class="name">x</span> <span class="operator">*</span> <span class="name">cellSize</span>;
+          <span class="name">horizontalAnimation</span>.<span class="name">start</span>();
+        }
+        <span class="keyword">break</span>;
+    }
+
+    <span class="name">naziPositions</span>.<span class="name">forEach</span>((<span class="keyword"></span>position, index) =&gt; {
+      <span class="keyword">if</span> (<span class="name">playerPosition</span>.<span class="name">x</span> <span class="operator">===</span> <span class="name">position</span>.<span class="name">x</span> <span class="operator">&amp;&amp;</span> <span class="name">playerPosition</span>.<span class="name">y</span> <span class="operator">===</span> <span class="name">position</span>.<span class="name">y</span>) {
+        <span class="name">naziPositions</span>.<span class="name">splice</span>(<span class="name">index</span>, <span class="number">1</span>);
+        <span class="keyword">if</span> (<span class="name">window</span>.<span class="name">blindMode</span> <span class="operator">&amp;&amp;</span> <span class="name">tts</span>.<span class="name">state</span> <span class="operator">===</span> <span class="name">TextToSpeech</span>.<span class="name">Ready</span> <span class="operator">&amp;&amp;</span> <span class="name">naziPositions</span>.<span class="name">length</span> <span class="operator">&gt;</span> <span class="number">0</span>) {
+          <span class="name">tts</span>.<span class="name">say</span>(`You have sabotaged a Nazi! ${naziPositions.length + 1} coworkers remaining.`)
+        }
+      }
+    });
+    <span class="keyword">if</span> (<span class="name">naziPositions</span>.<span class="name">length</span> <span class="operator">===</span> <span class="number">0</span>) {
+      const totalTime = <span class="name">Date</span>.<span class="name">now</span>() <span class="operator">-</span> <span class="name">startTime</span>;
+      <span class="keyword">if</span> (<span class="name">tts</span>.<span class="name">state</span> <span class="operator">===</span> <span class="name">TextToSpeech</span>.<span class="name">Speaking</span>) {
+        <span class="name">tts</span>.<span class="name">stop</span>();
+      }
+      <span class="keyword">if</span> (<span class="name">window</span>.<span class="name">blindMode</span>) {
+        <span class="name">SpeechToText</span>.<span class="name">stopSpeechToText</span>();
+      }
+      <span class="name">gameScene</span>.<span class="name">finished</span>(<span class="name">enemyCount</span>, <span class="name">totalTime</span>);
+    }
+  }
+
+  <span class="name">focus</span>: <span class="name">visible</span>
+  <span class="name">Keys</span>.forwardTo: <span class="name">controller</span>
+
+  <span class="type">TwoAxisController</span> {
+    <span class="name">id</span>: <span class="name">controller</span>
+    <span class="name">inputActionsToKeyCode</span>: {
+      &quot;up&quot;: <span class="name">Qt</span>.<span class="name">Key_W</span>,
+      &quot;down&quot;: <span class="name">Qt</span>.<span class="name">Key_S</span>,
+      &quot;left&quot;: <span class="name">Qt</span>.<span class="name">Key_A</span>,
+      &quot;right&quot;: <span class="name">Qt</span>.<span class="name">Key_D</span>
+    }
+
+    <span class="name">onInputActionReleased</span>: (<span class="keyword"></span>actionName) =&gt; {
+      <span class="keyword">switch</span> (<span class="name">actionName</span>) {
+        <span class="keyword">case</span> <span class="string">&quot;up&quot;</span>:
+          <span class="name">gameScene</span>.<span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Up</span>);
+          <span class="keyword">break</span>;
+        <span class="keyword">case</span> <span class="string">&quot;left&quot;</span>:
+          <span class="name">gameScene</span>.<span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Left</span>);
+          <span class="keyword">break</span>;
+        <span class="keyword">case</span> <span class="string">&quot;down&quot;</span>:
+          <span class="name">gameScene</span>.<span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Down</span>);
+          <span class="keyword">break</span>;
+        <span class="keyword">case</span> <span class="string">&quot;right&quot;</span>:
+          <span class="name">gameScene</span>.<span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Right</span>);
+          <span class="keyword">break</span>;
+      }
+    }
+  }
+
+  <span class="type">Grid</span> {
+    <span class="name">id</span>: <span class="name">board</span>
+    <span class="name">columns</span>: <span class="name">gameScene</span>.<span class="name">gridSize</span>
+    <span class="name">rows</span>: <span class="name">gameScene</span>.<span class="name">gridSize</span>
+    <span class="name">width</span>: <span class="name">gameScene</span>.<span class="name">boardSize</span>
+    <span class="name">height</span>: <span class="name">gameScene</span>.<span class="name">boardSize</span>
+    <span class="name">anchors</span>.centerIn: <span class="name">parent</span>
+    <span class="name">Accessible</span>.ignored: <span class="number">true</span>
+
+    <span class="type">Repeater</span> {
+      <span class="name">model</span>: <span class="name">gameScene</span>.<span class="name">gridSize</span> <span class="operator">*</span> <span class="name">gameScene</span>.<span class="name">gridSize</span>
+      <span class="type">Rectangle</span> {
+        property <span class="type">bool</span> <span class="name">containsEnemy</span>: {
+          const x = <span class="name">index</span> <span class="operator">%</span> <span class="name">gameScene</span>.<span class="name">gridSize</span>
+          const y = <span class="name">Math</span>.<span class="name">floor</span>(<span class="name">index</span> <span class="operator">/</span> <span class="name">gameScene</span>.<span class="name">gridSize</span>)
+          <span class="keyword">return</span> <span class="name">gameScene</span>.<span class="name">naziPositions</span>.<span class="name">some</span>((<span class="keyword"></span>nazi) =&gt; <span class="keyword"></span><span class="name">nazi</span>.<span class="name">x</span> <span class="operator">===</span> <span class="name">x</span> <span class="operator">&amp;&amp;</span> <span class="name">nazi</span>.<span class="name">y</span> <span class="operator">===</span> <span class="name">y</span>)
+        }
+
+        <span class="name">width</span>: <span class="name">gameScene</span>.<span class="name">cellSize</span>
+        <span class="name">height</span>: <span class="name">gameScene</span>.<span class="name">cellSize</span>
+        <span class="name">border</span>.color: <span class="name">Theme</span>.<span class="name">appButton</span>.<span class="name">backgroundColor</span>
+        <span class="name">color</span>: <span class="name">window</span>.<span class="name">highContrast</span> ? <span class="string">&quot;navy&quot;</span> : <span class="string">&quot;transparent&quot;</span>
+
+        <span class="type">MultiResolutionImage</span> {
+          <span class="comment">// the correct image version is used, based on the GameWindow size</span>
+          property <span class="type">url</span> <span class="name">origin</span>: <span class="name">parent</span>.<span class="name">containsEnemy</span> ? <span class="name">Qt</span>.<span class="name">resolvedUrl</span>(<span class="string">&quot;../assets/img/Nazi.png&quot;</span>) : <span class="string">&quot;&quot;</span>
+
+          <span class="name">width</span>: <span class="name">parent</span>.<span class="name">width</span> <span class="operator">-</span> <span class="number">4</span>
+          <span class="name">height</span>: <span class="name">parent</span>.<span class="name">height</span> <span class="operator">-</span> <span class="number">4</span>
+          <span class="name">anchors</span>.centerIn: <span class="name">parent</span>
+          <span class="name">source</span>: <span class="name">origin</span>
+        }
+      }
+    }
+  }
+
+  <span class="type">MultiResolutionImage</span> {
+    <span class="name">id</span>: <span class="name">player</span>
+    <span class="name">source</span>: <span class="name">Qt</span>.<span class="name">resolvedUrl</span>(<span class="string">&quot;../assets/img/Player.png&quot;</span>)
+    <span class="name">width</span>: <span class="name">gameScene</span>.<span class="name">cellSize</span> <span class="operator">-</span> <span class="number">4</span>
+    <span class="name">height</span>: <span class="name">gameScene</span>.<span class="name">cellSize</span> <span class="operator">-</span> <span class="number">4</span>
+    <span class="name">x</span>: <span class="name">animatedX</span>
+    <span class="name">y</span>: <span class="name">animatedY</span>
+
+    property <span class="type">real</span> <span class="name">animatedX</span>: <span class="name">board</span>.<span class="name">x</span> <span class="operator">+</span> <span class="name">gameScene</span>.<span class="name">playerPosition</span>.<span class="name">x</span> <span class="operator">*</span> <span class="name">gameScene</span>.<span class="name">cellSize</span>
+    property <span class="type">real</span> <span class="name">animatedY</span>: <span class="name">board</span>.<span class="name">y</span> <span class="operator">+</span> <span class="name">gameScene</span>.<span class="name">playerPosition</span>.<span class="name">y</span> <span class="operator">*</span> <span class="name">gameScene</span>.<span class="name">cellSize</span>
+
+    NumberAnimation on <span class="name">animatedX</span> {
+      <span class="name">id</span>: <span class="name">horizontalAnimation</span>
+      <span class="name">duration</span>: <span class="number">200</span>
+    }
+    NumberAnimation on <span class="name">animatedY</span> {
+      <span class="name">id</span>: <span class="name">verticalAnimation</span>
+      <span class="name">duration</span>: <span class="number">200</span>
+    }
+  }
+
+  <span class="type">Connections</span> {
+    <span class="name">target</span>: <span class="name">SpeechToText</span>
+
+    <span class="keyword">function </span><span class="name">onSpeechToTextResult</span>(result) {
+      const commandRegex = /move ([A-Za-z]+)/i;
+      <span class="keyword">if</span> (!<span class="name">commandRegex</span>.<span class="name">test</span>(<span class="name">result</span>)) {
+        <span class="name">console</span>.<span class="name">warn</span>(`Unrecognized voice command: ${result}`);
+        <span class="keyword">return</span>;
+      }
+      const directionText = <span class="name">commandRegex</span>.<span class="name">exec</span>(<span class="name">result</span>)[<span class="number">1</span>];
+      <span class="keyword">switch</span> (<span class="name">directionText</span>) {
+        <span class="keyword">case</span> <span class="string">&quot;up&quot;</span>:
+          <span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Up</span>);
+          <span class="keyword">break</span>;
+        <span class="keyword">case</span> <span class="string">&quot;left&quot;</span>:
+          <span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Left</span>);
+          <span class="keyword">break</span>;
+        <span class="keyword">case</span> <span class="string">&quot;down&quot;</span>:
+          <span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Down</span>);
+          <span class="keyword">break</span>;
+        <span class="keyword">case</span> <span class="string">&quot;right&quot;</span>:
+          <span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Right</span>);
+          <span class="keyword">break</span>;
+      }
+    }
+  }
+}</pre>
+<p>This is where most of the magic happens. We start by generating a list of random positions on the board to be occupied by Nazis. This works fine for Traditional and High Contrast modes, but since blind users won't be able to visually see enemy positions, we need to announce them using text-to-speech:</p>
+<pre class="qml"><span class="comment">// Inform blind users of the enemy positions</span>
+const boxes = <span class="name">naziPositions</span>.<span class="name">map</span>((<span class="keyword"></span>pos) =&gt; <span class="keyword"></span>(<span class="name">pos</span>.<span class="name">y</span> <span class="operator">*</span> <span class="name">gridSize</span>) <span class="operator">+</span> <span class="name">pos</span>.<span class="name">x</span> <span class="operator">+</span> <span class="number">1</span>)
+const text = `There are Nazis in cells ${boxes.slice(0, -1).join(&quot;, &quot;)} and ${boxes[boxes.length-1]}`;
+<span class="keyword">if</span> (<span class="name">visible</span> <span class="operator">&amp;&amp;</span> <span class="name">window</span>.<span class="name">blindMode</span> <span class="operator">&amp;&amp;</span> <span class="name">tts</span>.<span class="name">state</span> <span class="operator">===</span> <span class="name">TextToSpeech</span>.<span class="name">Ready</span>) {
+  <span class="name">tts</span>.<span class="name">say</span>(<span class="name">text</span>);
+}</pre>
+<p>After that, we're ready to enable speech recognition using the Felgo SDK:</p>
+<pre class="qml"><span class="keyword">if</span> (<span class="name">visible</span> <span class="operator">&amp;&amp;</span> <span class="name">window</span>.<span class="name">blindMode</span>) {
+  <span class="name">SpeechToText</span>.<span class="name">startSpeechToText</span>(<span class="string">&quot;en-US&quot;</span>);
+}</pre>
+<p>We'll soon be adding a slot to process spoken input into game commands, but first, take a look at the <code>move</code> function. This is where we use the <code>MoveDirection</code> enum defined in the first step. It should give you an idea of how you can structure your code to support both traditional input and voice commands. By using a shared entry point for player movement, we avoid duplicating logic and ensure both input systems are equally supported.</p>
+<p>In both modes, we calculate whether any Nazis have been sabotaged. If none remain, we stop speech recognition and emit a signal to indicate the game has finished.</p>
+<pre class="qml"><span class="type">Connections</span> {
+  <span class="name">target</span>: <span class="name">SpeechToText</span>
+
+  <span class="keyword">function </span><span class="name">onSpeechToTextResult</span>(result) {
+    const commandRegex = /move ([A-Za-z]+)/i;
+    <span class="keyword">if</span> (!<span class="name">commandRegex</span>.<span class="name">test</span>(<span class="name">result</span>)) {
+      <span class="name">console</span>.<span class="name">warn</span>(`Unrecognized voice command: ${result}`);
+      <span class="keyword">return</span>;
+    }
+    const directionText = <span class="name">commandRegex</span>.<span class="name">exec</span>(<span class="name">result</span>)[<span class="number">1</span>];
+    <span class="keyword">switch</span> (<span class="name">directionText</span>) {
+      <span class="keyword">case</span> <span class="string">&quot;up&quot;</span>:
+        <span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Up</span>);
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">&quot;left&quot;</span>:
+        <span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Left</span>);
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">&quot;down&quot;</span>:
+        <span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Down</span>);
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">&quot;right&quot;</span>:
+        <span class="name">move</span>(<span class="name">Main</span>.<span class="name">MoveDirection</span>.<span class="name">Right</span>);
+        <span class="keyword">break</span>;
+    }
+  }
+}</pre>
+<p>Adding support for speech commands is surprisingly simple. A slot connected to the <code>SpeechToText</code> singleton transforms spoken phrases into enum values—just like <code>TwoAxisController</code> does for keyboard events.</p>
+<h3 id="scene-4-game-result">Scene 4: Game Result</h3>
+<pre class="qml"><span class="type">Scene</span> {
+  <span class="name">id</span>: <span class="name">gameOverScene</span>
+  <span class="name">visible</span>: <span class="name">window</span>.<span class="name">currentScene</span> <span class="operator">===</span> <span class="name">Main</span>.<span class="name">GameScene</span>.<span class="name">GameOver</span>
+
+  readonly property <span class="type">string</span> <span class="name">headerText</span>: <span class="name">qsTr</span>(<span class="string">&quot;Congratulations!&quot;</span>)
+  readonly property <span class="type">string</span> <span class="name">scoreText</span>: <span class="name">qsTr</span>(<span class="string">&quot;You sabotaged %1 Nazis&quot;</span>).<span class="name">arg</span>(<span class="name">window</span>.<span class="name">finalScore</span>)
+
+  <span class="type">Column</span> {
+    <span class="name">spacing</span>: <span class="number">0</span>
+    <span class="name">width</span>: <span class="name">parent</span>.<span class="name">width</span>
+    <span class="name">anchors</span>.centerIn: <span class="name">parent</span>
+
+    <span class="type">AppText</span> {
+      <span class="name">anchors</span>.horizontalCenter: <span class="name">parent</span>.<span class="name">horizontalCenter</span>
+      <span class="name">text</span>: <span class="name">gameOverScene</span>.<span class="name">headerText</span>
+      <span class="name">font</span>.pixelSize: <span class="number">36</span>
+    }
+
+    <span class="type">AppText</span> {
+      <span class="name">anchors</span>.horizontalCenter: <span class="name">parent</span>.<span class="name">horizontalCenter</span>
+      <span class="name">text</span>: <span class="name">gameOverScene</span>.<span class="name">scoreText</span>
+      <span class="name">font</span>.pixelSize: <span class="number">36</span>
+    }
+  }
+}</pre>
+<p>Our final scene is very simple. We just inform the user how successful they were at sabotaging the Nazis.</p>
+<p>That concludes all four scenes that make up our game, but we still need to tie them together.</p>
+<h3 id="connecting-everything">Connecting Everything</h3>
+<pre class="qml"><span class="type">Connections</span> {
+  <span class="name">target</span>: <span class="name">selectGameModeScene</span>
+
+  <span class="keyword">function </span><span class="name">onTraditionalModeSelected</span>() {
+    <span class="name">window</span>.<span class="name">highContrast</span> <span class="operator">=</span> <span class="number">false</span>;
+    <span class="name">window</span>.<span class="name">blindMode</span> <span class="operator">=</span> <span class="number">false</span>;
+    <span class="name">window</span>.<span class="name">currentScene</span> <span class="operator">=</span> <span class="name">Main</span>.<span class="name">GameScene</span>.<span class="name">IntroductionMessage</span>;
+  }
+  <span class="keyword">function </span><span class="name">onHighContrastModeSelected</span>() {
+    <span class="name">window</span>.<span class="name">highContrast</span> <span class="operator">=</span> <span class="number">true</span>;
+    <span class="name">window</span>.<span class="name">blindMode</span> <span class="operator">=</span> <span class="number">false</span>;
+    <span class="name">window</span>.<span class="name">currentScene</span> <span class="operator">=</span> <span class="name">Main</span>.<span class="name">GameScene</span>.<span class="name">IntroductionMessage</span>;
+  }
+  <span class="keyword">function </span><span class="name">onBlindModeSelected</span>() {
+    <span class="name">window</span>.<span class="name">highContrast</span> <span class="operator">=</span> <span class="number">false</span>;
+    <span class="name">window</span>.<span class="name">blindMode</span> <span class="operator">=</span> <span class="number">true</span>;
+    <span class="name">window</span>.<span class="name">currentScene</span> <span class="operator">=</span> <span class="name">Main</span>.<span class="name">GameScene</span>.<span class="name">IntroductionMessage</span>;
+  }
+}
+
+<span class="type">Connections</span> {
+  <span class="name">target</span>: <span class="name">introductionMessageScene</span>
+
+  <span class="keyword">function </span><span class="name">onStartClicked</span>() {
+    <span class="name">window</span>.<span class="name">currentScene</span> <span class="operator">=</span> <span class="name">Main</span>.<span class="name">GameScene</span>.<span class="name">Game</span>;
+  }
+}
+
+<span class="type">Connections</span> {
+  <span class="name">target</span>: <span class="name">gameScene</span>
+  <span class="keyword">function </span><span class="name">onFinished</span>(score: <span class="name">int</span>, time: int) {
+    <span class="name">window</span>.<span class="name">finalScore</span> <span class="operator">=</span> <span class="name">score</span>;
+    <span class="name">window</span>.<span class="name">currentScene</span> <span class="operator">=</span> <span class="name">Main</span>.<span class="name">GameScene</span>.<span class="name">GameOver</span>;
+  }
+}</pre>
+<p>We change which scene is visible to the user by updating the value of <code>window.currentScene</code>. To avoid tight coupling between scenes, we don't set shared properties directly inside any Scene component. Instead, each scene emits a signal to indicate when something important happens—such as a button being pressed or all enemies being cleared.</p>
+<p>As you can see, each signal from the first three scenes is connected to a slot that updates <code>window.currentScene</code> accordingly. This approach keeps each scene self-contained. If we later decide to add or remove scenes, we won't have to modify logic inside any individual scene—everything is managed at the top level.</p>
+<h3 id="conclusion">Conclusion</h3>
+<p>Great job making it this far! You should now understand the basics of how to make games more accessible using high contrast colors and speech recognition.</p>
+<p>If you had any trouble copying code from the tutorial, you can download the complete demo <a href="https://">here</a>.</p>
+<p>There's still plenty more that can be done, or you can jump straight to adding accessibility to your own games. Either way, we can't wait to see what you come up with!</p>
+</div>
+<!-- @@@howto-voice-control-game.html -->
+</body>
+</html>
